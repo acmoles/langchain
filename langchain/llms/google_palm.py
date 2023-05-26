@@ -42,9 +42,11 @@ def _create_retry_decorator() -> Callable[[Any], Any]:
     return retry(
         reraise=True,
         stop=stop_after_attempt(max_retries),
-        wait=wait_exponential(multiplier=multiplier, min=min_seconds, max=max_seconds),
+        wait=wait_exponential(multiplier=multiplier,
+                              min=min_seconds, max=max_seconds),
         retry=(
-            retry_if_exception_type(google.api_core.exceptions.ResourceExhausted)
+            retry_if_exception_type(
+                google.api_core.exceptions.ResourceExhausted)
             | retry_if_exception_type(google.api_core.exceptions.ServiceUnavailable)
             | retry_if_exception_type(google.api_core.exceptions.GoogleAPIError)
         ),
@@ -63,13 +65,28 @@ def generate_with_retry(llm: GooglePalm, **kwargs: Any) -> Any:
     return _generate_with_retry(**kwargs)
 
 
+async def agenerate_with_retry(
+    llm: GooglePalm, **kwargs: Any
+) -> Any:
+    """Use tenacity to retry the async completion call."""
+    retry_decorator = _create_retry_decorator(llm)
+
+    @retry_decorator
+    async def _generate_with_retry(**kwargs: Any) -> Any:
+        # Use OpenAI's async api https://github.com/openai/openai-python#async-api
+        return await llm.client.acreate(**kwargs)
+
+    return await _generate_with_retry(**kwargs)
+
+
 def _strip_erroneous_leading_spaces(text: str) -> str:
     """Strip erroneous leading spaces from text.
 
     The PaLM API will sometimes erroneously return a single leading space in all
     lines > 1. This function strips that space.
     """
-    has_leading_space = all(not line or line[0] == " " for line in text.split("\n")[1:])
+    has_leading_space = all(
+        not line or line[0] == " " for line in text.split("\n")[1:])
     if has_leading_space:
         return text.replace("\n ", "\n")
     else:
@@ -164,7 +181,28 @@ class GooglePalm(BaseLLM, BaseModel):
         stop: Optional[List[str]] = None,
         run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
     ) -> LLMResult:
-        raise NotImplementedError()
+        generations = []
+        for prompt in prompts:
+            completion = await agenerate_with_retry(
+                self,
+                model=self.model_name,
+                prompt=prompt,
+                stop_sequences=stop,
+                temperature=self.temperature,
+                top_p=self.top_p,
+                top_k=self.top_k,
+                max_output_tokens=self.max_output_tokens,
+                candidate_count=self.n,
+            )
+
+            prompt_generations = []
+            for candidate in completion.candidates:
+                raw_text = candidate["output"]
+                stripped_text = _strip_erroneous_leading_spaces(raw_text)
+                prompt_generations.append(Generation(text=stripped_text))
+            generations.append(prompt_generations)
+
+        return LLMResult(generations=generations)
 
     @property
     def _llm_type(self) -> str:
