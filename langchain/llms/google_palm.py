@@ -69,7 +69,7 @@ async def agenerate_with_retry(
     llm: GooglePalm, **kwargs: Any
 ) -> Any:
     """Use tenacity to retry the async completion call."""
-    retry_decorator = _create_retry_decorator(llm)
+    retry_decorator = _create_retry_decorator()
 
     @retry_decorator
     async def _generate_with_retry(**kwargs: Any) -> Any:
