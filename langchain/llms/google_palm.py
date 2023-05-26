@@ -1,6 +1,7 @@
 """Wrapper arround Google's PaLM Text APIs."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, Callable, Dict, List, Optional
 
@@ -71,10 +72,12 @@ async def agenerate_with_retry(
     """Use tenacity to retry the async completion call."""
     retry_decorator = _create_retry_decorator()
 
+    def call_api(**kwargs: Any) -> Any:
+        return llm.client.generate_text(**kwargs)
+
     @retry_decorator
     async def _generate_with_retry(**kwargs: Any) -> Any:
-        # Use OpenAI's async api https://github.com/openai/openai-python#async-api
-        return await llm.client.generate_text(**kwargs)
+        return await asyncio.to_thread(call_api, **kwargs)
 
     return await _generate_with_retry(**kwargs)
 
