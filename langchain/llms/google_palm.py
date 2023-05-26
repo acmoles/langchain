@@ -74,7 +74,7 @@ async def agenerate_with_retry(
     @retry_decorator
     async def _generate_with_retry(**kwargs: Any) -> Any:
         # Use OpenAI's async api https://github.com/openai/openai-python#async-api
-        return await llm.client.acreate(**kwargs)
+        return await llm.client.generate_text(**kwargs)
 
     return await _generate_with_retry(**kwargs)
 
