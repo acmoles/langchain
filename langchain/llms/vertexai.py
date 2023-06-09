@@ -12,7 +12,6 @@ from langchain.utilities.vertexai import (
 )
 
 if TYPE_CHECKING:
-    from google.auth.credentials import Credentials
     from vertexai.language_models._language_models import _LanguageModel
 
 
@@ -30,29 +29,34 @@ class _VertexAICommon(BaseModel):
     top_k: int = 40
     "How the model selects tokens for output, the next token is selected from "
     "among the top-k most probable tokens."
+    stop: Optional[List[str]] = None
+    "Optional list of stop words to use when generating."
     project: Optional[str] = None
     "The default GCP project to use when making Vertex API calls."
     location: str = "us-central1"
     "The default location to use when making API calls."
-    credentials: Optional["Credentials"] = None
-    "The default custom credentials to use when making API calls. If not provided "
-    "credentials will be ascertained from the environment." ""
+    credentials: Any = None
+    "The default custom credentials (google.auth.credentials.Credentials) to use "
+    "when making API calls. If not provided, credentials will be ascertained from "
+    "the environment."
 
     @property
     def _default_params(self) -> Dict[str, Any]:
         base_params = {
             "temperature": self.temperature,
             "max_output_tokens": self.max_output_tokens,
-            "top_k": self.top_p,
-            "top_p": self.top_k,
+            "top_k": self.top_k,
+            "top_p": self.top_p,
         }
         return {**base_params}
 
-    def _predict(self, prompt: str, stop: Optional[List[str]]) -> str:
+    def _predict(self, prompt: str, stop: Optional[List[str]] = None) -> str:
         res = self.client.predict(prompt, **self._default_params)
         return self._enforce_stop_words(res.text, stop)
 
-    def _enforce_stop_words(self, text: str, stop: Optional[List[str]]) -> str:
+    def _enforce_stop_words(self, text: str, stop: Optional[List[str]] = None) -> str:
+        if stop is None and self.stop is not None:
+            stop = self.stop
         if stop:
             return enforce_stop_tokens(text, stop)
         return text
@@ -64,7 +68,7 @@ class _VertexAICommon(BaseModel):
     @classmethod
     def _try_init_vertexai(cls, values: Dict) -> None:
         allowed_params = ["project", "location", "credentials"]
-        params = {k: v for k, v in values.items() if v in allowed_params}
+        params = {k: v for k, v in values.items() if k in allowed_params}
         init_vertexai(**params)
         return None
 
