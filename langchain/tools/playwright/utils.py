@@ -33,11 +33,11 @@ def get_current_page(browser: SyncBrowser) -> SyncPage:
     return context.pages[-1]
 
 
-def create_async_playwright_browser(headless: bool = True) -> AsyncBrowser:
+async def create_async_playwright_browser(headless: bool = True) -> AsyncBrowser:
     from playwright.async_api import async_playwright
 
-    browser = run_async(async_playwright().start())
-    return run_async(browser.chromium.launch(headless=headless))
+    browser = await async_playwright().start()
+    return await browser.chromium.launch(headless=headless)
 
 
 def create_sync_playwright_browser(headless: bool = True) -> SyncBrowser:
